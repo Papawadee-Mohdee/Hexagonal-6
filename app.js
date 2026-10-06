@@ -9,7 +9,6 @@ const REGION_MAP = {
     "ใต้": ["กระบี่", "ชุมพร", "ตรัง", "นครศรีธรรมราช", "นราธิวาส", "ปัตตานี", "พังงา", "พัทลุง", "ภูเก็ต", "ระนอง", "สงขลา", "สตูล", "สุราษฎร์ธานี", "ยะลา"]
 };
 
-// Flatten to provToRegion
 const provToRegion = {};
 const allProvincesList = [];
 const allRegionsList = Object.keys(REGION_MAP);
@@ -31,11 +30,10 @@ let trendChart = null;
 const thaiFormatter = new Intl.NumberFormat('th-TH');
 const compactFormatter = new Intl.NumberFormat('en-US', { notation: "compact" });
 
-// Global State
 let state = {
-    viewMode: 'province', // 'province' | 'region'
+    viewMode: 'province', 
     years: new Set([2565, 2566, 2567, 2568]),
-    selected: new Set(allProvincesList), // always store what is selected based on mode
+    selected: new Set(allProvincesList), 
     metric: 'planted_rai'
 };
 
@@ -82,14 +80,12 @@ function setupListeners() {
         state.selected = new Set(state.viewMode === 'province' ? allProvincesList : allRegionsList);
         document.querySelectorAll('.year-btn').forEach(b => b.classList.add('active'));
         document.getElementById('provSearch').value = '';
-        renderFilterList();
-        updateDashboard();
-        resetMapBounds();
+        render();
     });
     
     document.getElementById('metricSelect').addEventListener('change', (e) => {
         state.metric = e.target.value;
-        updateDashboard();
+        render();
     });
     
     document.getElementById('provSearch').addEventListener('input', (e) => {
@@ -98,17 +94,14 @@ function setupListeners() {
 }
 
 function setViewMode(mode) {
-    if (state.viewMode === mode) return; // do nothing if already in mode
+    if (state.viewMode === mode) return; 
     state.viewMode = mode;
     document.getElementById('viewProvBtn').classList.toggle('active', mode === 'province');
     document.getElementById('viewRegBtn').classList.toggle('active', mode === 'region');
     document.getElementById('locationFilterTitle').innerText = mode === 'province' ? 'จังหวัด' : 'ภูมิภาค';
     
-    // Reset selection to ALL when switching mode to avoid empty states
     state.selected = new Set(mode === 'province' ? allProvincesList : allRegionsList);
-    renderFilterList();
-    updateDashboard();
-    resetMapBounds();
+    render();
 }
 
 async function loadData() {
@@ -120,7 +113,6 @@ async function loadData() {
             dynamicTyping: true,
             skipEmptyLines: true,
             complete: function(results) {
-                // Ensure every row has a correct region from SSOT
                 riceData = results.data.filter(d => d.name).map(d => {
                     const region = provToRegion[d.name];
                     if (!region) {
@@ -128,27 +120,17 @@ async function loadData() {
                     }
                     d.region = region;
                     return d;
-                }).filter(d => d.region); // drop if no region
+                }).filter(d => d.region); 
                 
                 state.selected = new Set(allProvincesList);
                 
-                // Verify totals
-                let tPlanted = 0, tHarvested = 0, tProduction = 0;
-                riceData.forEach(d => {
-                    tPlanted += d.planted_rai || 0;
-                    tHarvested += d.harvested_rai || 0;
-                    tProduction += d.production_ton || 0;
-                });
-                console.log(`Totals Check - Planted: ${tPlanted}, Harvested: ${tHarvested}, Prod: ${tProduction}`);
-                
                 renderYearButtons();
-                renderFilterList();
                 initMap();
                 
                 fetch('thailand_provinces.geojson')
                     .then(r => r.json())
-                    .then(geo => { geojson = geo; updateDashboard(); resetMapBounds(); })
-                    .catch(e => { console.error(e); updateDashboard(); });
+                    .then(geo => { geojson = geo; render(); })
+                    .catch(e => { console.error(e); render(); });
             }
         });
     } catch (e) { console.error(e); }
@@ -169,7 +151,7 @@ function renderYearButtons() {
                 state.years.add(y);
                 btn.classList.add('active');
             }
-            updateDashboard();
+            render();
         };
         container.appendChild(btn);
     });
@@ -187,11 +169,9 @@ function renderFilterList(searchQuery = '') {
         selectAll.onchange = (e) => {
             const chk = e.target.checked;
             filteredProvs.forEach(i => chk ? state.selected.add(i) : state.selected.delete(i));
-            renderFilterList(searchQuery);
-            updateDashboard();
+            render();
         };
 
-        // Group by Region
         allRegionsList.forEach(region => {
             const provsInReg = REGION_MAP[region].filter(p => p.toLowerCase().includes(searchQuery.toLowerCase()));
             if (provsInReg.length === 0) return;
@@ -210,7 +190,6 @@ function renderFilterList(searchQuery = '') {
             titleSpan.innerText = region;
             
             const selectRegBtn = document.createElement('button');
-            selectRegBtn.innerText = 'เลือกทั้งภาค';
             selectRegBtn.style.fontSize = '11px';
             selectRegBtn.style.padding = '2px 4px';
             selectRegBtn.style.cursor = 'pointer';
@@ -221,8 +200,7 @@ function renderFilterList(searchQuery = '') {
             selectRegBtn.onclick = () => {
                 const willSelect = !allSelected;
                 provsInReg.forEach(p => willSelect ? state.selected.add(p) : state.selected.delete(p));
-                renderFilterList(searchQuery);
-                updateDashboard();
+                render();
             };
             
             headerDiv.appendChild(titleSpan);
@@ -237,8 +215,13 @@ function renderFilterList(searchQuery = '') {
                 cb.onchange = (e) => {
                     if(e.target.checked) state.selected.add(item);
                     else state.selected.delete(item);
-                    renderFilterList(searchQuery);
-                    updateDashboard();
+                    
+                    // Do not allow empty state to break things silently
+                    if(state.selected.size === 0) {
+                        console.error("Filter resulted in 0 items.");
+                        // Empty state UI handles this
+                    }
+                    render();
                 };
                 lbl.appendChild(cb);
                 lbl.appendChild(document.createTextNode(item));
@@ -255,8 +238,7 @@ function renderFilterList(searchQuery = '') {
         selectAll.onchange = (e) => {
             const chk = e.target.checked;
             filteredRegs.forEach(i => chk ? state.selected.add(i) : state.selected.delete(i));
-            renderFilterList(searchQuery);
-            updateDashboard();
+            render();
         };
         
         filteredRegs.forEach(item => {
@@ -267,8 +249,7 @@ function renderFilterList(searchQuery = '') {
             cb.onchange = (e) => {
                 if(e.target.checked) state.selected.add(item);
                 else state.selected.delete(item);
-                renderFilterList(searchQuery);
-                updateDashboard();
+                render();
             };
             lbl.appendChild(cb);
             lbl.appendChild(document.createTextNode(item));
@@ -311,7 +292,7 @@ function initMap() {
         const val = getMapValue(cleanName);
         const metricName = document.getElementById('metricSelect').options[document.getElementById('metricSelect').selectedIndex].text;
         
-        this._div.innerHTML = `<h4>${cleanName}</h4><b>${provToRegion[cleanName] || ''}</b><br/>${metricName}: ${val > 0 ? thaiFormatter.format(val) : 'ไม่มีข้อมูล/ไม่ได้เลือก'}`;
+        this._div.innerHTML = `<h4>${cleanName}</h4><b>${provToRegion[cleanName] || ''}</b><br/>${metricName}: ${val > 0 ? thaiFormatter.format(val) : 'ไม่ได้เลือก'}`;
     };
     info.addTo(map);
     
@@ -321,14 +302,6 @@ function initMap() {
         return this._div;
     };
     legend.addTo(map);
-}
-
-function resetMapBounds() {
-    if (geojsonLayer) {
-        map.fitBounds(geojsonLayer.getBounds());
-    } else {
-        map.setView([13.7, 100.5], 5);
-    }
 }
 
 function getProvinceByPcode(pcode) {
@@ -365,46 +338,37 @@ function getFilteredData() {
 }
 
 function toggleSelection(item) {
-    // Save old state for rollback
     const oldState = new Set(state.selected);
     
     if (state.selected.has(item)) {
         state.selected.delete(item);
     } else {
-        // If clicking a single item when all were selected, maybe we want to isolate it?
-        // Let's just do standard toggle.
         state.selected.add(item);
     }
     
     if (state.selected.size === 0) {
         console.error(`Filter resulted in 0 items (removed ${item}). Rolling back.`);
         state.selected = oldState;
-        return;
+        return; // Don't render empty
     }
     
-    renderFilterList();
-    updateDashboard();
-    
-    // Fit map bounds to selected items
-    if (geojsonLayer && geojson) {
-        // Find features that match selected
-        const selectedFeatures = geojson.features.filter(f => {
-            const pName = getProvinceByPcode(f.properties.adm1_pcode) || f.properties.ADM1_TH || f.properties.adm1_name1;
-            if (state.viewMode === 'province') return state.selected.has(pName);
-            return state.selected.has(provToRegion[pName]);
-        });
-        
-        if (selectedFeatures.length > 0) {
-            const group = new L.featureGroup(selectedFeatures.map(f => L.geoJson(f)));
-            map.fitBounds(group.getBounds());
-        }
-    }
+    render();
 }
 
-function updateDashboard() {
+// Single pipeline function that updates EVERYTHING synchronously with the current state
+function render() {
+    // 1. Sidebar checkboxes
+    const searchQuery = document.getElementById('provSearch').value;
+    // We only update inner HTML if really needed, but it's small enough to redraw
+    renderFilterList(searchQuery);
+
+    // 2. Empty state overlay
     const emptyOverlay = document.getElementById('emptyStateOverlay');
     if (state.selected.size === 0) {
         emptyOverlay.classList.add('active');
+        // Hide map layer if everything is empty
+        if (geojsonLayer) map.removeLayer(geojsonLayer);
+        return;
     } else {
         emptyOverlay.classList.remove('active');
     }
@@ -425,7 +389,8 @@ function updateChips() {
     yChip.innerText = `ปี: ${Array.from(state.years).sort().join(', ')}`;
     c.appendChild(yChip);
     
-    if (state.selected.size > 0 && state.selected.size < (state.viewMode==='province'?allProvincesList.length:allRegionsList.length)) {
+    const totalItems = state.viewMode === 'province' ? allProvincesList.length : allRegionsList.length;
+    if (state.selected.size > 0 && state.selected.size < totalItems) {
         Array.from(state.selected).forEach(item => {
             const chip = document.createElement('div');
             chip.className = 'chip';
@@ -468,7 +433,7 @@ function updateKPIs(data) {
     
     const isMultiYear = state.years.size > 1;
     
-    const render = (id, val, pVal, unit) => {
+    const doRender = (id, val, pVal, unit) => {
         document.getElementById(id).innerText = thaiFormatter.format(Math.round(val));
         const trendEl = document.getElementById(id.replace('kpi', 'trend'));
         
@@ -483,58 +448,85 @@ function updateKPIs(data) {
         }
     };
     
-    render('kpiPlanted', current.p, prev.p, 'ไร่');
-    render('kpiHarvested', current.h, prev.h, 'ไร่');
-    render('kpiProduction', current.t, prev.t, 'ตัน');
-    render('kpiYieldP', current.yp, prev.yp, 'กก./ไร่');
-    render('kpiYieldH', current.yh, prev.yh, 'กก./ไร่');
+    doRender('kpiPlanted', current.p, prev.p, 'ไร่');
+    doRender('kpiHarvested', current.h, prev.h, 'ไร่');
+    doRender('kpiProduction', current.t, prev.t, 'ตัน');
+    doRender('kpiYieldP', current.yp, prev.yp, 'กก./ไร่');
+    doRender('kpiYieldH', current.yh, prev.yh, 'กก./ไร่');
 }
 
 function updateMap() {
     if (!geojson) return;
-    if (geojsonLayer) map.removeLayer(geojsonLayer);
     
     let maxVal = 0;
     allProvincesList.forEach(p => {
         const v = getMapValue(p);
         if(v > maxVal) maxVal = v;
     });
+
+    const getStyle = (feature) => {
+        const pName = getProvinceByPcode(feature.properties.adm1_pcode);
+        return {
+            fillColor: getColor(pName, getMapValue(pName), maxVal),
+            weight: 1,
+            opacity: 1,
+            color: 'white',
+            dashArray: '3',
+            fillOpacity: 0.8
+        };
+    };
     
-    geojsonLayer = L.geoJson(geojson, {
-        style: (feature) => {
-            const pName = getProvinceByPcode(feature.properties.adm1_pcode);
-            return {
-                fillColor: getColor(pName, getMapValue(pName), maxVal),
-                weight: 1,
-                opacity: 1,
-                color: 'white',
-                dashArray: '3',
-                fillOpacity: 0.8
-            };
-        },
-        onEachFeature: (feature, layer) => {
-            layer.on({
-                mouseover: (e) => {
-                    const l = e.target;
-                    l.setStyle({ weight: 2, color: '#333', dashArray: '', fillOpacity: 1 });
-                    l.bringToFront();
-                    info.update(feature.properties);
-                },
-                mouseout: (e) => {
-                    geojsonLayer.resetStyle(e.target);
-                    info.update();
-                },
-                click: (e) => {
-                    const pName = getProvinceByPcode(feature.properties.adm1_pcode);
-                    if(!pName || missingDataProvinces.has(pName)) return;
-                    
-                    const item = state.viewMode === 'region' ? provToRegion[pName] : pName;
-                    toggleSelection(item);
-                }
-            });
-        }
-    }).addTo(map);
+    if (geojsonLayer) {
+        // Just update styles to avoid recreating layer and leaving artifacts (Bug 4)
+        // Reset any hover styles explicitly
+        geojsonLayer.eachLayer(layer => {
+            layer.setStyle(getStyle(layer.feature));
+        });
+    } else {
+        geojsonLayer = L.geoJson(geojson, {
+            style: getStyle,
+            onEachFeature: (feature, layer) => {
+                layer.on({
+                    mouseover: (e) => {
+                        const l = e.target;
+                        l.setStyle({ weight: 2, color: '#333', dashArray: '', fillOpacity: 1 });
+                        l.bringToFront();
+                        info.update(feature.properties);
+                    },
+                    mouseout: (e) => {
+                        // Reset back to computed state style
+                        geojsonLayer.resetStyle(e.target);
+                        e.target.setStyle(getStyle(feature));
+                        info.update();
+                    },
+                    click: (e) => {
+                        const pName = getProvinceByPcode(feature.properties.adm1_pcode);
+                        if(!pName || missingDataProvinces.has(pName)) return;
+                        
+                        const item = state.viewMode === 'region' ? provToRegion[pName] : pName;
+                        toggleSelection(item);
+                    }
+                });
+            }
+        }).addTo(map);
+    }
     
+    // Fit Bounds
+    const selectedFeatures = geojson.features.filter(f => {
+        const pName = getProvinceByPcode(f.properties.adm1_pcode);
+        if (!pName) return false;
+        if (state.viewMode === 'province') return state.selected.has(pName);
+        return state.selected.has(provToRegion[pName]);
+    });
+    
+    if (selectedFeatures.length > 0 && selectedFeatures.length < geojson.features.length) {
+        const group = new L.featureGroup(selectedFeatures.map(f => L.geoJson(f)));
+        map.fitBounds(group.getBounds());
+    } else if (selectedFeatures.length === geojson.features.length) {
+        map.setView([13.7, 100.5], 5);
+    }
+    
+    // Update legend
     const grades = [0, maxVal*0.2, maxVal*0.4, maxVal*0.6, maxVal*0.8];
     let labels = [];
     for (let i = 0; i < grades.length; i++) {
@@ -556,20 +548,45 @@ function updateCharts(data) {
         metric = 'production_ton'; 
     }
     
-    const totals = {};
-    data.forEach(d => { totals[d[groupKey]] = (totals[d[groupKey]] || 0) + (d[metric] || 0); });
+    // We calculate ALL totals regardless of selection to render the full donut, 
+    // but we fade out the unselected ones.
+    const allTotals = {};
+    riceData.forEach(d => {
+        if (state.years.has(d.year_be)) {
+            allTotals[d[groupKey]] = (allTotals[d[groupKey]] || 0) + (d[metric] || 0);
+        }
+    });
     
-    const sorted = Object.keys(totals).map(k => ({k, v: totals[k]})).sort((a,b) => b.v - a.v);
+    const sorted = Object.keys(allTotals).map(k => ({k, v: allTotals[k]})).sort((a,b) => b.v - a.v);
     
-    let dLabels = [], dData = [];
-    if (sorted.length > 8) { 
-        dLabels = sorted.slice(0, 8).map(s => s.k);
-        dData = sorted.slice(0, 8).map(s => s.v);
+    let dLabels = [], dData = [], dBgColors = [];
+    let otherV = 0;
+    
+    const totalItems = state.viewMode === 'province' ? allProvincesList.length : allRegionsList.length;
+    const allSelected = state.selected.size === totalItems;
+
+    sorted.forEach((s, index) => {
+        if (index < 8) {
+            dLabels.push(s.k);
+            dData.push(s.v);
+            const isSelected = state.selected.has(s.k);
+            let color = colors.pie[index % colors.pie.length];
+            // Fade out if it's not selected (unless all are selected, then show normal)
+            if (!isSelected && !allSelected) {
+                color += '33'; // 20% opacity hex
+            }
+            dBgColors.push(color);
+        } else {
+            otherV += s.v;
+        }
+    });
+    
+    if (sorted.length > 8) {
         dLabels.push('อื่นๆ');
-        dData.push(sorted.slice(8).reduce((sum,s) => sum + s.v, 0));
-    } else {
-        dLabels = sorted.map(s => s.k);
-        dData = sorted.map(s => s.v);
+        dData.push(otherV);
+        // Is any 'other' selected?
+        const isAnyOtherSelected = sorted.slice(8).some(s => state.selected.has(s.k));
+        dBgColors.push('#cbd5e1' + ((isAnyOtherSelected || allSelected) ? '' : '33'));
     }
     
     const metricText = metric === 'production_ton' ? 'ผลผลิต' : (metric === 'harvested_rai' ? 'เนื้อที่เก็บเกี่ยว' : 'เนื้อที่เพาะปลูก');
@@ -578,6 +595,7 @@ function updateCharts(data) {
     if (donutChart) {
         donutChart.data.labels = dLabels;
         donutChart.data.datasets[0].data = dData;
+        donutChart.data.datasets[0].backgroundColor = dBgColors;
         donutChart.update();
     } else {
         const ctx = document.getElementById('donutChart').getContext('2d');
@@ -585,7 +603,7 @@ function updateCharts(data) {
             type: 'doughnut',
             data: {
                 labels: dLabels,
-                datasets: [{ data: dData, backgroundColor: colors.pie }]
+                datasets: [{ data: dData, backgroundColor: dBgColors }]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
@@ -606,8 +624,6 @@ function updateCharts(data) {
                     if (elements.length > 0) {
                         const clicked = dLabels[elements[0].index];
                         if (clicked === 'อื่นๆ') return;
-                        
-                        // Toggle logic (do not switch mode!)
                         toggleSelection(clicked);
                     }
                 }
@@ -615,7 +631,7 @@ function updateCharts(data) {
         });
     }
     
-    // Trend Chart
+    // Trend Chart (only selected data)
     const years = Array.from(state.years).sort();
     const yP = years.map(y => data.filter(d => d.year_be === y).reduce((s,d)=>s+(d.planted_rai||0),0));
     const yH = years.map(y => data.filter(d => d.year_be === y).reduce((s,d)=>s+(d.harvested_rai||0),0));
