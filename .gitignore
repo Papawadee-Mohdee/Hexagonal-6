@@ -1,0 +1,12 @@
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+scratch/
+
+venv/
+.venv/
+__pycache__/
+.env
+shapefiles/
+*.shp.zip

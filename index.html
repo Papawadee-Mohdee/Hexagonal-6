@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard ข้าวนาปรัง</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&family=Prompt:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        :root {
+            /* Colors */
+            --primary: #166534;
+            --success: #22C55E;
+            --warning: #F59E0B;
+            --info: #0EA5E9;
+            --danger: #EF4444;
+            
+            /* Theme: Light */
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --header-bg: #166534;
+            --header-text: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            /* Theme: Dark */
+            --bg-body: #111827;
+            --bg-card: #1f2937;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --border-color: #374151;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --header-bg: #0f4021;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans Thai', sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        h1, h2, h3, h4, h5, h6 { font-family: 'Prompt', sans-serif; font-weight: 600; margin: 0; }
+
+        .app-header {
+            background-color: var(--header-bg);
+            color: var(--header-text);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        button {
+            font-family: 'Noto Sans Thai', sans-serif;
+            background: #ffffff;
+            color: var(--primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        button:hover { background: #f0fdf4; }
+        
+        button.btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+        }
+        button.btn-primary:hover { background: #14532d; }
+
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 24px;
+        }
+        
+        @media (max-width: 1024px) {
+            .container { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        
+        .filter-group h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--text-main);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 8px;
+            display: inline-block;
+        }
+
+        .year-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .year-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px;
+        }
+        .year-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .prov-search {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-family: inherit;
+            background: var(--bg-body);
+            color: var(--text-main);
+        }
+
+        .prov-list {
+            max-height: 300px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .prov-list label { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .prov-list input { cursor: pointer; }
+
+        .main-content { display: flex; flex-direction: column; gap: 24px; }
+
+        .active-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .chip {
+            background: var(--info);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+        @media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px) { .kpi-row { grid-template-columns: 1fr; } }
+        
+        .kpi-card {
+            text-align: center;
+            padding: 16px;
+        }
+        .kpi-title { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+        .kpi-value { font-size: 28px; font-family: 'Prompt', sans-serif; font-weight: 700; color: var(--text-main); }
+        .kpi-trend { font-size: 12px; margin-top: 4px; font-weight: 500; }
+        .trend-up { color: var(--success); }
+        .trend-down { color: var(--danger); }
+        .trend-flat { color: var(--text-muted); }
+
+        .chart-row {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 24px;
+        }
+        @media (max-width: 1024px) { .chart-row { grid-template-columns: 1fr; } }
+
+        .chart-container { height: 350px; position: relative; }
+        .map-container { height: 400px; border-radius: 8px; z-index: 1; }
+        
+        .info-legend {
+            background: var(--bg-card);
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: var(--shadow);
+            color: var(--text-main);
+            font-size: 12px;
+            line-height: 18px;
+        }
+        .info-legend i { width: 14px; height: 14px; float: left; margin-right: 8px; opacity: 0.8; }
+        .info-legend h4 { margin: 0 0 4px 0; font-size: 13px; color: var(--text-main); }
+        
+        .segmented-control {
+            display: flex;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--bg-card);
+        }
+        .segmented-control button {
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            color: var(--text-main);
+        }
+        .segmented-control button.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .empty-state {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            gap: 16px;
+        }
+        .empty-state.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <h1>Dashboard ข้าวนาปรัง รายจังหวัด/ภูมิภาค</h1>
+    <div class="header-controls">
+        <div class="segmented-control">
+            <button id="viewProvBtn" class="active">รายจังหวัด</button>
+            <button id="viewRegBtn">รายภูมิภาค</button>
+        </div>
+        <button id="themeToggleBtn">🌙 Dark Mode</button>
+        <button id="clearFiltersBtn" class="btn-primary">ล้างตัวกรองทั้งหมด</button>
+    </div>
+</header>
+
+<div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="card">
+            <div class="filter-group">
+                <h3>ปี พ.ศ.</h3>
+                <div class="year-grid" id="yearFilter">
+                    <!-- JS populated -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="filter-group">
+                <h3>ตัวชี้วัดบนแผนที่</h3>
+                <select id="metricSelect" class="prov-search">
+                    <option value="planted_rai">เนื้อที่เพาะปลูก (ไร่)</option>
+                    <option value="harvested_rai">เนื้อที่เก็บเกี่ยว (ไร่)</option>
+                    <option value="production_ton">ผลผลิต (ตัน)</option>
+                    <option value="yield_planted_kg_rai">ผลผลิตต่อไร่ ปลูก (กก.)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="filter-group">
+                <h3 id="locationFilterTitle">จังหวัด</h3>
+                <input type="text" id="provSearch" class="prov-search" placeholder="ค้นหาชื่อ...">
+                <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="selectAllProv"> เลือกทั้งหมด</label>
+                <div class="prov-list" id="provinceList">
+                    <!-- JS populated -->
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content" style="position: relative;">
+        <div class="empty-state" id="emptyStateOverlay" style="position:absolute; top:0; left:0; right:0; bottom:0; background: var(--bg-body); z-index: 100;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            <h2>ยังไม่ได้เลือกข้อมูลพื้นที่</h2>
+            <p>กรุณาเลือกจังหวัดหรือภูมิภาคจากเมนูด้านซ้าย เพื่อดูข้อมูล</p>
+            <button class="btn-primary" onclick="document.getElementById('clearFiltersBtn').click()">เลือกข้อมูลทั้งหมด</button>
+        </div>
+
+        <div class="active-filters" id="activeFilters">
+            <!-- Chips -->
+        </div>
+
+        <!-- KPIs -->
+        <div class="kpi-row">
+            <div class="card kpi-card">
+                <div class="kpi-title" style="color: var(--primary);">เนื้อที่เพาะปลูก (ไร่)</div>
+                <div class="kpi-value" id="kpiPlanted">0</div>
+                <div class="kpi-trend" id="trendPlanted">-</div>
+            </div>
+            <div class="card kpi-card">
+                <div class="kpi-title" style="color: var(--success);">เนื้อที่เก็บเกี่ยว (ไร่)</div>
+                <div class="kpi-value" id="kpiHarvested">0</div>
+                <div class="kpi-trend" id="trendHarvested">-</div>
+            </div>
+            <div class="card kpi-card">
+                <div class="kpi-title" style="color: var(--info);">ผลผลิต (ตัน)</div>
+                <div class="kpi-value" id="kpiProduction">0</div>
+                <div class="kpi-trend" id="trendProduction">-</div>
+            </div>
+            <div class="card kpi-card">
+                <div class="kpi-title" style="color: var(--warning);">ผลผลิตต่อไร่(ปลูก) (กก.)</div>
+                <div class="kpi-value" id="kpiYieldP">0</div>
+                <div class="kpi-trend" id="trendYieldP">-</div>
+            </div>
+            <div class="card kpi-card">
+                <div class="kpi-title" style="color: var(--warning);">ผลผลิตต่อไร่(เก็บ) (กก.)</div>
+                <div class="kpi-value" id="kpiYieldH">0</div>
+                <div class="kpi-trend" id="trendYieldH">-</div>
+            </div>
+        </div>
+
+        <!-- Row 2: Map and Donut -->
+        <div class="chart-row">
+            <div class="card">
+                <h3>แผนที่</h3>
+                <div id="map" class="map-container" style="margin-top: 12px;"></div>
+            </div>
+            <div class="card">
+                <h3 id="donutTitle">สัดส่วนตามเนื้อที่เพาะปลูก (10 อันดับ)</h3>
+                <div class="chart-container">
+                    <canvas id="donutChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Trend Line -->
+        <div class="card">
+            <h3>แนวโน้มรายปี</h3>
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card" style="font-size: 12px; color: var(--text-muted);">
+            <strong>ข้อมูลอ้างอิง:</strong> สำนักงานเศรษฐกิจการเกษตร (สศก.) ข้อมูลข้าวนาปรัง 2565-2568 | 
+            <strong>แผนที่:</strong> OCHA (HDX) COD-AB CC BY-IGO |
+            <em>หมายเหตุ: แดชบอร์ดนี้เน้นข้อมูลปริมาณและพื้นที่เพาะปลูกข้าว ส่วนข้อมูลน้ำฝนและน้ำในเขื่อนรายจังหวัดแบบเปิดยังไม่พบ API/CSV ที่สมบูรณ์ในปีที่กำหนด จึงละเว้นไว้เพื่อให้ข้อมูลมีความน่าเชื่อถือสูงสุดตามที่ได้รับมอบหมาย</em>
+        </div>
+    </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

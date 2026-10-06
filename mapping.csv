@@ -1,0 +1,78 @@
+﻿adm1_name,province_th,region,pcode
+Bangkok,กรุงเทพมหานคร,ภาคกลาง,TH10
+Samut Prakan,สมุทรปราการ,ภาคกลาง,TH11
+Nonthaburi,นนทบุรี,ภาคกลาง,TH12
+Pathum Thani,ปทุมธานี,ภาคกลาง,TH13
+Phra Nakhon Si Ayutthaya,พระนครศรีอยุธยา,ภาคกลาง,TH14
+Ang Thong,อ่างทอง,ภาคกลาง,TH15
+Lop Buri,ลพบุรี,ภาคกลาง,TH16
+Sing Buri,สิงห์บุรี,ภาคกลาง,TH17
+Chai Nat,ชัยนาท,ภาคกลาง,TH18
+Saraburi,สระบุรี,ภาคกลาง,TH19
+Chon Buri,ชลบุรี,ภาคตะวันออก,TH20
+Rayong,ระยอง,ภาคตะวันออก,TH21
+Chanthaburi,จันทบุรี,ภาคตะวันออก,TH22
+Trat,ตราด,ภาคตะวันออก,TH23
+Chachoengsao,ฉะเชิงเทรา,ภาคตะวันออก,TH24
+Prachin Buri,ปราจีนบุรี,ภาคตะวันออก,TH25
+Nakhon Nayok,นครนายก,ภาคกลาง,TH26
+Sa Kaeo,สระแก้ว,ภาคตะวันออก,TH27
+Nakhon Ratchasima,นครราชสีมา,ภาคตะวันออกเฉียงเหนือ,TH30
+Buri Ram,บุรีรัมย์,ภาคตะวันออกเฉียงเหนือ,TH31
+Surin,สุรินทร์,ภาคตะวันออกเฉียงเหนือ,TH32
+Si Sa Ket,ศรีสะเกษ,ภาคตะวันออกเฉียงเหนือ,TH33
+Ubon Ratchathani,อุบลราชธานี,ภาคตะวันออกเฉียงเหนือ,TH34
+Yasothon,ยโสธร,ภาคตะวันออกเฉียงเหนือ,TH35
+Chaiyaphum,ชัยภูมิ,ภาคตะวันออกเฉียงเหนือ,TH36
+Amnat Charoen,อำนาจเจริญ,ภาคตะวันออกเฉียงเหนือ,TH37
+Bueng Kan,บึงกาฬ,ภาคตะวันออกเฉียงเหนือ,TH38
+Nong Bua Lam Phu,หนองบัวลำภู,ภาคตะวันออกเฉียงเหนือ,TH39
+Khon Kaen,ขอนแก่น,ภาคตะวันออกเฉียงเหนือ,TH40
+Udon Thani,อุดรธานี,ภาคตะวันออกเฉียงเหนือ,TH41
+Loei,เลย,ภาคตะวันออกเฉียงเหนือ,TH42
+Nong Khai,หนองคาย,ภาคตะวันออกเฉียงเหนือ,TH43
+Maha Sarakham,มหาสารคาม,ภาคตะวันออกเฉียงเหนือ,TH44
+Roi Et,ร้อยเอ็ด,ภาคตะวันออกเฉียงเหนือ,TH45
+Kalasin,กาฬสินธุ์,ภาคตะวันออกเฉียงเหนือ,TH46
+Sakon Nakhon,สกลนคร,ภาคตะวันออกเฉียงเหนือ,TH47
+Nakhon Phanom,นครพนม,ภาคตะวันออกเฉียงเหนือ,TH48
+Mukdahan,มุกดาหาร,ภาคตะวันออกเฉียงเหนือ,TH49
+Chiang Mai,เชียงใหม่,ภาคเหนือ,TH50
+Lamphun,ลำพูน,ภาคเหนือ,TH51
+Lampang,ลำปาง,ภาคเหนือ,TH52
+Uttaradit,อุตรดิตถ์,ภาคเหนือ,TH53
+Phrae,แพร่,ภาคเหนือ,TH54
+Nan,น่าน,ภาคเหนือ,TH55
+Phayao,พะเยา,ภาคเหนือ,TH56
+Chiang Rai,เชียงราย,ภาคเหนือ,TH57
+Mae Hong Son,แม่ฮ่องสอน,ภาคเหนือ,TH58
+Nakhon Sawan,นครสวรรค์,ภาคกลาง,TH60
+Uthai Thani,อุทัยธานี,ภาคกลาง,TH61
+Kamphaeng Phet,กำแพงเพชร,ภาคกลาง,TH62
+Tak,ตาก,ภาคตะวันตก,TH63
+Sukhothai,สุโขทัย,ภาคกลาง,TH64
+Phitsanulok,พิษณุโลก,ภาคกลาง,TH65
+Phichit,พิจิตร,ภาคกลาง,TH66
+Phetchabun,เพชรบูรณ์,ภาคกลาง,TH67
+Ratchaburi,ราชบุรี,ภาคตะวันตก,TH70
+Kanchanaburi,กาญจนบุรี,ภาคตะวันตก,TH71
+Suphan Buri,สุพรรณบุรี,ภาคกลาง,TH72
+Nakhon Pathom,นครปฐม,ภาคกลาง,TH73
+Samut Sakhon,สมุทรสาคร,ภาคกลาง,TH74
+Samut Songkhram,สมุทรสงคราม,ภาคกลาง,TH75
+Phetchaburi,เพชรบุรี,ภาคตะวันตก,TH76
+Prachuap Khiri Khan,ประจวบคีรีขันธ์,ภาคตะวันตก,TH77
+Nakhon Si Thammarat,นครศรีธรรมราช,ภาคใต้,TH80
+Krabi,กระบี่,ภาคใต้,TH81
+Phangnga,พังงา,ภาคใต้,TH82
+Phuket,ภูเก็ต,ภาคใต้,TH83
+Surat Thani,สุราษฎร์ธานี,ภาคใต้,TH84
+Ranong,ระนอง,ภาคใต้,TH85
+Chumphon,ชุมพร,ภาคใต้,TH86
+Songkhla,สงขลา,ภาคใต้,TH90
+Satun,สตูล,ภาคใต้,TH91
+Trang,ตรัง,ภาคใต้,TH92
+Phatthalung,พัทลุง,ภาคใต้,TH93
+Pattani,ปัตตานี,ภาคใต้,TH94
+Yala,ยะลา,ภาคใต้,TH95
+Narathiwat,นราธิวาส,ภาคใต้,TH96
