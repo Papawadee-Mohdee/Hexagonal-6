@@ -81,10 +81,37 @@ let state = {
     years: new Set([2565, 2566, 2567, 2568]),
     selectedRegions: new Set(allRegionsList),
     selectedProvinces: new Set(allProvincesList),
-    metric: 'planted_rai'
+    metric: 'planted_rai',
+    searchText: ''  // live search text
 };
 
+// Snapshot of filters before search started (for restoring on clear)
+let preSearchState = null;
+
 const missingDataProvinces = new Set(['ระนอง', 'จันทบุรี', 'พังงา', 'ภูเก็ต']);
+
+// Strip prefixes like "จ.", "จังหวัด" from search query
+function normalizeSearchQuery(q) {
+    return q.trim().replace(/^(จังหวัด|จ\.)/, '').trim();
+}
+
+// Get provinces matching a search query (against all 77 provinces)
+function getSearchMatchingProvinces(query) {
+    if (!query) return null; // null = no search active
+    const q = normalizeSearchQuery(query).toLowerCase();
+    if (!q) return null;
+    return allProvincesList.filter(p => p.toLowerCase().includes(q));
+}
+
+// Compute the effective set of provinces for the entire render pipeline.
+// When search is active, the search result overrides the checkbox/region filters.
+function getEffectiveProvinces() {
+    const matched = getSearchMatchingProvinces(state.searchText);
+    if (matched !== null) {
+        return new Set(matched);
+    }
+    return state.selectedProvinces;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
@@ -117,12 +144,18 @@ function setupListeners() {
         state.viewMode = 'province';
         state.selectedProvinces = new Set(allProvincesList);
         state.selectedRegions = new Set(allRegionsList);
+        state.searchText = '';
+        preSearchState = null;
+        document.getElementById('provSearch').value = '';
         render();
     });
     document.getElementById('viewRegBtn').addEventListener('click', () => {
         state.viewMode = 'region';
         state.selectedRegions = new Set(allRegionsList);
         state.selectedProvinces = new Set(allProvincesList);
+        state.searchText = '';
+        preSearchState = null;
+        document.getElementById('provSearch').value = '';
         render();
     });
     
@@ -130,6 +163,9 @@ function setupListeners() {
         state.years = new Set([2565, 2566, 2567, 2568]);
         state.selectedRegions = new Set(allRegionsList);
         state.selectedProvinces = new Set(allProvincesList);
+        state.searchText = '';
+        preSearchState = null;
+        document.getElementById('provSearch').value = '';
         render();
     });
     
@@ -139,7 +175,38 @@ function setupListeners() {
     });
     
     document.getElementById('provSearch').addEventListener('input', (e) => {
-        renderFilterList(e.target.value);
+        const val = e.target.value;
+        // Save pre-search state on first character
+        if (!state.searchText && val) {
+            preSearchState = {
+                selectedProvinces: new Set(state.selectedProvinces),
+                selectedRegions: new Set(state.selectedRegions)
+            };
+        }
+        // If user clears search, restore pre-search state
+        if (state.searchText && !val.trim() && preSearchState) {
+            state.selectedProvinces = preSearchState.selectedProvinces;
+            state.selectedRegions = preSearchState.selectedRegions;
+            preSearchState = null;
+        }
+        state.searchText = val;
+        render();
+    });
+
+    document.getElementById('provSearch').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const matched = getSearchMatchingProvinces(state.searchText);
+            if (matched && matched.length > 0) {
+                // Commit: set these provinces as real filter
+                state.selectedProvinces = new Set(matched);
+                syncRegionsAndProvinces();
+                state.searchText = '';
+                preSearchState = null;
+                document.getElementById('provSearch').value = '';
+                render();
+            }
+        }
     });
 
     document.getElementById('breadcrumb').addEventListener('click', () => {
@@ -206,6 +273,12 @@ function renderYearButtons() {
 }
 
 function toggleLocationSelection(item, isMultiSelect) {
+    if (state.searchText) {
+        state.searchText = '';
+        document.getElementById('provSearch').value = '';
+        preSearchState = null;
+    }
+
     if (state.viewMode === 'province') {
         if (isMultiSelect) {
             if (state.selectedProvinces.has(item)) state.selectedProvinces.delete(item);
@@ -254,10 +327,10 @@ function syncRegionsAndProvinces() {
 
 // SINGLE render pipeline
 function render() {
-    if (state.selectedProvinces.size === 0 || state.selectedRegions.size === 0) {
+    // Only revert empty selectedProvinces/Regions when there is NO active search
+    if (!state.searchText && (state.selectedProvinces.size === 0 || state.selectedRegions.size === 0)) {
         state.selectedRegions = new Set(allRegionsList);
         state.selectedProvinces = new Set(allProvincesList);
-        console.error('Filter resulted in empty set. Reverted.');
     }
 
     // Toggle button active states
@@ -266,23 +339,45 @@ function render() {
     document.getElementById('locationFilterTitle').innerText = state.viewMode === 'province' ? 'จังหวัด' : 'ภูมิภาค';
 
     renderYearButtons();
-    const searchQuery = document.getElementById('provSearch').value;
-    renderFilterList(searchQuery);
+    renderFilterList(state.searchText);
 
-    const data = getFilteredData();
-    updateBreadcrumbAndChips();
+    const effectiveProvs = getEffectiveProvinces();
+    const searchActive = state.searchText && normalizeSearchQuery(state.searchText);
+
+    // Handle empty state / no search results
+    const emptyOverlay = document.getElementById('emptyStateOverlay');
+    if (searchActive && effectiveProvs.size === 0) {
+        // No matching provinces
+        emptyOverlay.querySelector('h2').innerText = 'ไม่พบจังหวัดที่ตรงกับคำค้นหา';
+        emptyOverlay.querySelector('p').innerText = `"${state.searchText}" ไม่ตรงกับชื่อจังหวัดใด ลองพิมพ์ใหม่`;
+        emptyOverlay.querySelector('button').innerText = 'ล้างคำค้นหา';
+        emptyOverlay.classList.add('active');
+    } else if (!searchActive && state.selectedProvinces.size === 0) {
+        emptyOverlay.querySelector('h2').innerText = 'ยังไม่ได้เลือกข้อมูลพื้นที่';
+        emptyOverlay.querySelector('p').innerText = 'กรุณาเลือกจังหวัดหรือภูมิภาคจากเมนูด้านซ้าย เพื่อดูข้อมูล';
+        emptyOverlay.querySelector('button').innerText = 'เลือกข้อมูลทั้งหมด';
+        emptyOverlay.classList.add('active');
+    } else {
+        emptyOverlay.classList.remove('active');
+    }
+
+    const data = getFilteredData(effectiveProvs);
+    updateBreadcrumbAndChips(effectiveProvs, searchActive);
     updateKPIs(data);
-    updateMap();
-    updateCharts(data);
+    updateMap(effectiveProvs);
+    updateCharts(data, effectiveProvs);
 }
 
-function getFilteredData() {
-    return riceData.filter(d => state.years.has(d.year_be) && state.selectedProvinces.has(d.name));
+function getFilteredData(effectiveProvs) {
+    const provs = effectiveProvs || getEffectiveProvinces();
+    return riceData.filter(d => state.years.has(d.year_be) && provs.has(d.name));
 }
 
-function updateBreadcrumbAndChips() {
+function updateBreadcrumbAndChips(effectiveProvs, searchActive) {
     const breadcrumb = document.getElementById('breadcrumb');
-    if (state.viewMode === 'region') {
+    if (searchActive) {
+        breadcrumb.innerHTML = `ค้นหา &rsaquo; "${state.searchText}" (${effectiveProvs.size} จังหวัด)`;
+    } else if (state.viewMode === 'region') {
         if (state.selectedRegions.size === 1) {
             breadcrumb.innerHTML = `ทั้งประเทศ &rsaquo; ${Array.from(state.selectedRegions)[0]}`;
         } else if (state.selectedRegions.size === allRegionsList.length) {
@@ -291,10 +386,10 @@ function updateBreadcrumbAndChips() {
             breadcrumb.innerHTML = `ทั้งประเทศ &rsaquo; (เลือก ${state.selectedRegions.size} ภูมิภาค)`;
         }
     } else {
-        if (state.selectedProvinces.size === allProvincesList.length) {
+        if (effectiveProvs.size === allProvincesList.length) {
             breadcrumb.innerHTML = `ทั้งประเทศ (ทุกจังหวัด)`;
         } else {
-            breadcrumb.innerHTML = `ทั้งประเทศ &rsaquo; เลือก ${state.selectedProvinces.size} จังหวัด`;
+            breadcrumb.innerHTML = `ทั้งประเทศ &rsaquo; เลือก ${effectiveProvs.size} จังหวัด`;
         }
     }
 
@@ -308,41 +403,66 @@ function updateBreadcrumbAndChips() {
         yChip.innerText = `ปี: ${Array.from(state.years).sort().join(', ')}`;
         c.appendChild(yChip);
     }
+
+    // Search chip
+    if (searchActive) {
+        const sChip = document.createElement('div');
+        sChip.className = 'chip';
+        sChip.style.background = '#8b5cf6'; // Different color for search
+        sChip.innerText = `ค้นหา: ${state.searchText}`;
+        const close = document.createElement('span');
+        close.innerText = ' ×';
+        close.style.cursor = 'pointer';
+        close.onclick = () => {
+            state.searchText = '';
+            document.getElementById('provSearch').value = '';
+            if (preSearchState) {
+                state.selectedProvinces = preSearchState.selectedProvinces;
+                state.selectedRegions = preSearchState.selectedRegions;
+                preSearchState = null;
+            }
+            render();
+        };
+        sChip.appendChild(close);
+        c.appendChild(sChip);
+    }
     
-    // Region/Province chips
-    if (state.viewMode === 'region') {
-        if (state.selectedRegions.size < allRegionsList.length) {
-            state.selectedRegions.forEach(r => {
-                const chip = document.createElement('div');
-                chip.className = 'chip';
-                chip.innerText = `${r}`;
-                const close = document.createElement('span');
-                close.innerText = ' ×';
-                close.style.cursor = 'pointer';
-                close.onclick = () => toggleLocationSelection(r, true);
-                chip.appendChild(close);
-                c.appendChild(chip);
-            });
-        }
-    } else {
-        if (state.selectedProvinces.size < allProvincesList.length) {
-            state.selectedProvinces.forEach(p => {
-                if (state.selectedProvinces.size > 10) return; // limit chips
-                const chip = document.createElement('div');
-                chip.className = 'chip';
-                chip.innerText = p;
-                const close = document.createElement('span');
-                close.innerText = ' ×';
-                close.style.cursor = 'pointer';
-                close.onclick = () => toggleLocationSelection(p, true);
-                chip.appendChild(close);
-                c.appendChild(chip);
-            });
-            if (state.selectedProvinces.size > 10) {
-                const chip = document.createElement('div');
-                chip.className = 'chip';
-                chip.innerText = `...และอีก ${state.selectedProvinces.size - 10} จังหวัด`;
-                c.appendChild(chip);
+    // Region/Province chips (only if not searching)
+    if (!searchActive) {
+        if (state.viewMode === 'region') {
+            if (state.selectedRegions.size < allRegionsList.length) {
+                state.selectedRegions.forEach(r => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.innerText = `${r}`;
+                    const close = document.createElement('span');
+                    close.innerText = ' ×';
+                    close.style.cursor = 'pointer';
+                    close.onclick = () => toggleLocationSelection(r, true);
+                    chip.appendChild(close);
+                    c.appendChild(chip);
+                });
+            }
+        } else {
+            if (effectiveProvs.size < allProvincesList.length) {
+                effectiveProvs.forEach(p => {
+                    if (effectiveProvs.size > 10) return; // limit chips
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.innerText = p;
+                    const close = document.createElement('span');
+                    close.innerText = ' ×';
+                    close.style.cursor = 'pointer';
+                    close.onclick = () => toggleLocationSelection(p, true);
+                    chip.appendChild(close);
+                    c.appendChild(chip);
+                });
+                if (effectiveProvs.size > 10) {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.innerText = `...และอีก ${effectiveProvs.size - 10} จังหวัด`;
+                    c.appendChild(chip);
+                }
             }
         }
     }
@@ -527,14 +647,14 @@ function initMap() {
     legend.addTo(map);
 }
 
-function updateMap() {
+function updateMap(effectiveProvs = state.selectedProvinces) {
     if (!geojson) return;
     
-    let maxVal = 0;
+    // Global max value across ALL provinces (for stable legend)
+    let globalMaxVal = 0;
     allProvincesList.forEach(p => {
-        if (!state.selectedProvinces.has(p)) return;
         const v = riceData.filter(d => d.name === p && state.years.has(d.year_be)).reduce((s,d) => s+(d[state.metric]||0),0);
-        if(v > maxVal) maxVal = v;
+        if(v > globalMaxVal) globalMaxVal = v;
     });
 
     const getStyle = (feature) => {
@@ -542,10 +662,10 @@ function updateMap() {
         let color = '#e5e7eb'; // default grey
         
         if (missingDataProvinces.has(pName)) color = '#d1d5db';
-        else if (state.selectedProvinces.has(pName)) {
+        else if (effectiveProvs.has(pName)) {
             const val = riceData.filter(d => d.name === pName && state.years.has(d.year_be)).reduce((s,d) => s+(d[state.metric]||0),0);
-            if (val > 0) {
-                const r = val / maxVal;
+            if (val > 0 && globalMaxVal > 0) {
+                const r = val / globalMaxVal;
                 color = r > 0.8 ? '#14532d' : r > 0.6 ? '#166534' : r > 0.4 ? '#22c55e' : r > 0.2 ? '#4ade80' : '#86efac';
             }
         }
@@ -585,8 +705,21 @@ function updateMap() {
                     click: (e) => {
                         const pName = getProvinceByPcode(feature.properties.adm1_pcode);
                         if(!pName || missingDataProvinces.has(pName)) return;
-                        const item = state.viewMode === 'region' ? provToRegion[pName] : pName;
-                        toggleLocationSelection(item, e.originalEvent.ctrlKey || e.originalEvent.shiftKey);
+                        
+                        // If user clicks map during search, maybe commit search first?
+                        // For now just treat click as a selection toggle.
+                        // If search is active, we should clear it and select this item.
+                        if (state.searchText) {
+                            state.searchText = '';
+                            document.getElementById('provSearch').value = '';
+                            preSearchState = null;
+                            state.selectedProvinces = new Set([pName]);
+                            syncRegionsAndProvinces();
+                            render();
+                        } else {
+                            const item = state.viewMode === 'region' ? provToRegion[pName] : pName;
+                            toggleLocationSelection(item, e.originalEvent.ctrlKey || e.originalEvent.shiftKey);
+                        }
                     }
                 });
             }
@@ -596,7 +729,7 @@ function updateMap() {
     // Fit Bounds
     const selectedFeatures = geojson.features.filter(f => {
         const pName = getProvinceByPcode(f.properties.adm1_pcode);
-        return pName && state.selectedProvinces.has(pName);
+        return pName && effectiveProvs.has(pName);
     });
     
     if (selectedFeatures.length > 0 && selectedFeatures.length < geojson.features.length) {
@@ -606,11 +739,11 @@ function updateMap() {
         map.flyToBounds([[5.0, 97.0], [21.0, 106.0]], { duration: 0.5 });
     }
     
-    // Update legend
-    const grades = [0, maxVal*0.2, maxVal*0.4, maxVal*0.6, maxVal*0.8];
+    // Update legend using global max to prevent scale shifting
+    const grades = [0, globalMaxVal*0.2, globalMaxVal*0.4, globalMaxVal*0.6, globalMaxVal*0.8];
     let labels = [];
     for (let i = 0; i < grades.length; i++) {
-        if (grades[i] === 0 && maxVal === 0) continue;
+        if (grades[i] === 0 && globalMaxVal === 0) continue;
         const color = i === 4 ? '#14532d' : i === 3 ? '#166534' : i === 2 ? '#22c55e' : i === 1 ? '#4ade80' : '#86efac';
         labels.push(
             '<i style="background:' + color + '"></i> ' +
@@ -620,23 +753,24 @@ function updateMap() {
     legend._div.innerHTML = labels.length ? labels.join('') : 'ไม่มีข้อมูล';
 }
 
-function renderMapStylesOnly() {
+function renderMapStylesOnly(effectiveProvs = state.selectedProvinces) {
     if (!geojsonLayer) return;
-    let maxVal = 0;
+    
+    // Global max value across ALL provinces (for stable legend)
+    let globalMaxVal = 0;
     allProvincesList.forEach(p => {
-        if (!state.selectedProvinces.has(p)) return;
         const v = riceData.filter(d => d.name === p && state.years.has(d.year_be)).reduce((s,d) => s+(d[state.metric]||0),0);
-        if(v > maxVal) maxVal = v;
+        if(v > globalMaxVal) globalMaxVal = v;
     });
     
     geojsonLayer.eachLayer(layer => {
         const pName = getProvinceByPcode(layer.feature.properties.adm1_pcode);
         let color = '#e5e7eb';
         if (missingDataProvinces.has(pName)) color = '#d1d5db';
-        else if (state.selectedProvinces.has(pName)) {
+        else if (effectiveProvs.has(pName)) {
             const val = riceData.filter(d => d.name === pName && state.years.has(d.year_be)).reduce((s,d) => s+(d[state.metric]||0),0);
-            if (val > 0) {
-                const r = val / maxVal;
+            if (val > 0 && globalMaxVal > 0) {
+                const r = val / globalMaxVal;
                 color = r > 0.8 ? '#14532d' : r > 0.6 ? '#166534' : r > 0.4 ? '#22c55e' : r > 0.2 ? '#4ade80' : '#86efac';
             }
         }
@@ -671,11 +805,11 @@ function highlightCharts(hoverItem) {
     });
 }
 
-function updateCharts(data) {
+function updateCharts(data, effectiveProvs = state.selectedProvinces) {
     Chart.defaults.font.family = "'Noto Sans Thai', sans-serif";
     
     // Drill-down logic: If region mode and EXACTLY 1 region selected, show provinces
-    const showProvinces = (state.viewMode === 'province') || (state.viewMode === 'region' && state.selectedRegions.size === 1);
+    const showProvinces = (state.viewMode === 'province') || (state.viewMode === 'region' && state.selectedRegions.size === 1) || state.searchText;
     const groupKey = showProvinces ? 'name' : 'region';
     
     let metric = document.getElementById('metricSelect').value;
@@ -684,12 +818,12 @@ function updateCharts(data) {
     // Accumulate totals for ALL valid items to draw the chart structure
     const allTotals = {};
     const itemsToDraw = showProvinces 
-        ? allProvincesList.filter(p => state.selectedProvinces.has(p)) 
+        ? allProvincesList.filter(p => effectiveProvs.has(p)) 
         : allRegionsList;
 
     riceData.forEach(d => {
         if (!state.years.has(d.year_be)) return;
-        if (showProvinces && !state.selectedProvinces.has(d.name)) return;
+        if (showProvinces && !effectiveProvs.has(d.name)) return;
         allTotals[d[groupKey]] = (allTotals[d[groupKey]] || 0) + (d[metric] || 0);
     });
     
@@ -702,34 +836,58 @@ function updateCharts(data) {
     
     let dLabels = [], dData = [], dBgColors = [];
     
-    sorted.forEach((s, index) => {
-        if (index < 10) {
-            dLabels.push(s.k);
-            dData.push(s.v);
-            
-            const isSelected = showProvinces ? state.selectedProvinces.has(s.k) : state.selectedRegions.has(s.k);
-            
-            let color = showProvinces ? colors.pie[index % colors.pie.length] : regionColors[s.k];
-            
-            const allSelected = showProvinces ? state.selectedProvinces.size === allProvincesList.length : state.selectedRegions.size === allRegionsList.length;
-            
-            if (!isSelected && !allSelected) {
-                color += '33'; // Fade out
+    if (state.searchText && effectiveProvs.size === 1) {
+        // EXACTLY 1 province from search: Show it vs rest of the country
+        const singleProv = Array.from(effectiveProvs)[0];
+        const provVal = allTotals[singleProv] || 0;
+        
+        // Calculate rest of country
+        let countryTotal = 0;
+        riceData.forEach(d => {
+            if (!state.years.has(d.year_be)) return;
+            countryTotal += (d[metric] || 0);
+        });
+        const restVal = countryTotal - provVal;
+        
+        dLabels = [singleProv, 'ส่วนที่เหลือของประเทศ'];
+        dData = [provVal, restVal];
+        dBgColors = [colors.pie[0], '#cbd5e1']; // Use first pie color and a grey color
+        
+        const metricText = metric === 'production_ton' ? 'ผลผลิต' : (metric === 'harvested_rai' ? 'เนื้อที่เก็บเกี่ยว' : 'เนื้อที่เพาะปลูก');
+        document.getElementById('donutTitle').innerText = `สัดส่วน${metricText} (เทียบทั้งประเทศ)`;
+        document.getElementById('barTitle').innerText = `เปรียบเทียบ${metricText}`;
+        
+    } else {
+        // Normal logic (Top 10)
+        sorted.forEach((s, index) => {
+            if (index < 10) {
+                dLabels.push(s.k);
+                dData.push(s.v);
+                
+                const isSelected = showProvinces ? effectiveProvs.has(s.k) : state.selectedRegions.has(s.k);
+                
+                let color = showProvinces ? colors.pie[index % colors.pie.length] : regionColors[s.k];
+                
+                const allSelected = showProvinces ? effectiveProvs.size === allProvincesList.length : state.selectedRegions.size === allRegionsList.length;
+                
+                if (!isSelected && !allSelected) {
+                    color += '33'; // Fade out
+                }
+                dBgColors.push(color);
             }
-            dBgColors.push(color);
+        });
+        
+        if (sorted.length > 10) {
+            dLabels.push('อื่นๆ');
+            const otherSum = sorted.slice(10).reduce((sum, s) => sum + s.v, 0);
+            dData.push(otherSum);
+            dBgColors.push('#cbd5e1');
         }
-    });
-    
-    if (sorted.length > 10) {
-        dLabels.push('อื่นๆ');
-        const otherSum = sorted.slice(10).reduce((sum, s) => sum + s.v, 0);
-        dData.push(otherSum);
-        dBgColors.push('#cbd5e1');
+        
+        const metricText = metric === 'production_ton' ? 'ผลผลิต' : (metric === 'harvested_rai' ? 'เนื้อที่เก็บเกี่ยว' : 'เนื้อที่เพาะปลูก');
+        document.getElementById('donutTitle').innerText = `สัดส่วน${metricText} ${showProvinces ? '(Top 10)' : '(6 ภูมิภาค)'}`;
+        document.getElementById('barTitle').innerText = `เปรียบเทียบ${metricText} ${showProvinces ? 'รายจังหวัด' : 'รายภูมิภาค'}`;
     }
-    
-    const metricText = metric === 'production_ton' ? 'ผลผลิต' : (metric === 'harvested_rai' ? 'เนื้อที่เก็บเกี่ยว' : 'เนื้อที่เพาะปลูก');
-    document.getElementById('donutTitle').innerText = `สัดส่วน${metricText} ${showProvinces ? '(Top 10)' : '(6 ภูมิภาค)'}`;
-    document.getElementById('barTitle').innerText = `เปรียบเทียบ${metricText} ${showProvinces ? 'รายจังหวัด' : 'รายภูมิภาค'}`;
     
     // Donut
     if (donutChart) {
